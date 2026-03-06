@@ -40,8 +40,8 @@ const { useState, useEffect, useRef } = React;
 // ══════════════════════════════════════════
 // ⚙️  SUPABASE CONFIG
 // ══════════════════════════════════════════
-const SUPABASE_URL  = 'https://wnvrmcibrmrswjwkdlff.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndudnJtY2licm1yc3dqd2tkbGZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDU1MjIsImV4cCI6MjA4ODM4MTUyMn0.jd_Tho4ocWF7mkXjf0Dufy9AhWoVH7Kxw669Nd7JN48';
+const SUPABASE_URL  = 'https://TU_PROYECTO.supabase.co';
+const SUPABASE_ANON = 'TU_ANON_KEY';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ══════════════════════════════════════════
@@ -182,20 +182,26 @@ function LoginScreen({ t, authMode, setAuthMode, handleAuth, lang, setLang }) {
 // 🎯  APP
 // ══════════════════════════════════════════
 function App() {
-    const [lang, setLang] = useState(() => {
-        const s = localStorage.getItem('chefLang');
-        if (s && T[s]) return s;
-        const b = (navigator.language||'es').split('-')[0];
-        return T[b] ? b : 'es';
-    });
+    // Login always starts in English; after login we load the user's saved lang from their profile
+    const [lang, setLang] = useState('en');
     const t = T[lang];
     const isRTL = RTL.includes(lang);
 
     useEffect(() => {
-        localStorage.setItem('chefLang', lang);
         document.documentElement.lang = lang;
         document.documentElement.dir  = isRTL ? 'rtl' : 'ltr';
     }, [lang, isRTL]);
+
+    // When lang changes AND user is logged in, persist to their profile
+    const saveLangToDB = async (newLang) => {
+        if (!session) return;
+        await sb.from('user_prefs').upsert({user_id: session.user.id, lang: newLang}, {onConflict:'user_id'});
+    };
+
+    const handleSetLang = (newLang) => {
+        setLang(newLang);
+        saveLangToDB(newLang);
+    };
 
     const [session, setSession]     = useState(null);
     const [authMode, setAuthMode]   = useState('login');
@@ -203,7 +209,7 @@ function App() {
     const [recetas, setRecetas]     = useState([]);
     const [nombreReceta, setNombreReceta] = useState('');
     const [descripcion, setDescripcion]   = useState('');
-    const [pasos, setPasos]         = useState([{id:Date.now(),instruccion:'',min:1,seg:0}]);
+    const [pasos, setPasos]         = useState([{id:Date.now(),instruccion:`${T['en'].newStep} 1`,min:1,seg:0}]);
     const [pasoActual, setPasoActual] = useState(null);
     const [segundos, setSegundos]   = useState(0);
     const [corriendo, setCorriendo] = useState(false);
@@ -220,7 +226,13 @@ function App() {
         return ()=>l.subscription.unsubscribe();
     },[]);
 
-    useEffect(()=>{if(session)loadRecetas();},[session]);
+    // Load user's saved language preference from DB after login
+    useEffect(() => {
+        if (!session) return;
+        sb.from('user_prefs').select('lang').eq('user_id', session.user.id).single()
+            .then(({data}) => { if (data?.lang && T[data.lang]) setLang(data.lang); });
+        loadRecetas();
+    }, [session]);
 
     useEffect(()=>{
         if(lastInputRef.current){lastInputRef.current.focus();lastInputRef.current.select();}
@@ -295,7 +307,7 @@ function App() {
                     <span className="bebas text-xl tracking-wider text-white">Chef Timer Pro</span>
                 </div>
                 <div className="flex items-center gap-3">
-                    <LangSwitcher lang={lang} setLang={setLang}/>
+                    <LangSwitcher lang={lang} setLang={handleSetLang}/>
                     <span className="text-zinc-600 text-xs hidden sm:block truncate max-w-[140px]">{session.user.email}</span>
                     <button onClick={()=>sb.auth.signOut()} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-400 transition-colors px-3 py-1.5 border border-zinc-800 rounded-lg">
                         {t.logout}
@@ -329,7 +341,8 @@ function App() {
                                     <div key={p.id} className="flex flex-col sm:flex-row gap-3 bg-zinc-950/80 p-4 rounded-2xl border border-zinc-800 items-center group hover:border-zinc-700 transition-all">
                                         <input ref={i===pasos.length-1?lastInputRef:null} type="text"
                                             className="flex-1 bg-transparent outline-none font-semibold focus:text-orange-400 w-full sm:w-auto"
-                                            value={p.instruccion} onChange={e=>editarPaso(i,'instruccion',e.target.value)}/>
+                                            value={p.instruccion} onChange={e=>editarPaso(i,'instruccion',e.target.value)}
+                                            onClick={e=>e.target.select()} onFocus={e=>e.target.select()}/>
                                         <div className="flex items-center gap-2">
                                             <div className="flex items-center bg-zinc-800 rounded-xl px-2">
                                                 <input type="number" className="w-10 bg-transparent py-2 text-center font-bold text-orange-500 outline-none"
@@ -427,10 +440,7 @@ function App() {
                                 </div>
                             </div>
 
-                            <div className="bg-orange-600/10 p-5 rounded-[2rem] border border-orange-600/20">
-                                <p className="text-orange-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.tipTitle}</p>
-                                <p className="text-zinc-400 text-xs leading-relaxed">{t.tipBody}</p>
-                            </div>
+
                         </div>
                     )}
                 </div>
