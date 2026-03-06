@@ -4,250 +4,442 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chef Timer Pro</title>
-    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍🍳</text></svg>">
-    
+
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        const SUPABASE_URL  = 'https://wnvrmcibrmrswjwkdlff.supabase.co';  // ← pegá acá
-        const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndudnJtY2licm1yc3dqd2tkbGZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDU1MjIsImV4cCI6MjA4ODM4MTUyMn0.jd_Tho4ocWF7mkXjf0Dufy9AhWoVH7Kxw669Nd7JN48';               // ← pegá acá
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- ✅ Google AdSense — reemplazá ca-pub-XXXXXXXXXXXXXXXX con tu Publisher ID -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+
     <style>
-        @keyframes alert-bg { 0%, 100% { background-color: #09090b; } 50% { background-color: #7f1d1d; } }
-        .alarma-activa { animation: alert-bg 0.6s infinite; }
-        input[type="number"]::-webkit-inner-spin-button { display: none; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,700;1,400&display=swap');
+        *{box-sizing:border-box}
+        body{font-family:'DM Sans',sans-serif}
+        @keyframes alert-bg{0%,100%{background-color:#09090b}50%{background-color:#7f1d1d}}
+        .alarma-activa{animation:alert-bg .6s infinite}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        .fade-in{animation:fadeIn .35s ease forwards}
+        @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(234,88,12,.5)}70%{box-shadow:0 0 0 18px rgba(234,88,12,0)}100%{box-shadow:0 0 0 0 rgba(234,88,12,0)}}
+        .pulse-ring{animation:pulse-ring 1.5s infinite}
+        input[type="number"]::-webkit-inner-spin-button{display:none}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:10px}
+        .bebas{font-family:'Bebas Neue',sans-serif}
+        .adsense-slot{width:100%;overflow:hidden;border-radius:1.25rem;background:#18181b;min-height:90px;display:flex;align-items:center;justify-content:center}
+        .adsense-slot ins{display:block;width:100%}
     </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 min-h-screen font-sans">
-    <div id="root"></div>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+// ══════════════════════════════════════════
+// ⚙️  SUPABASE CONFIG
+// ══════════════════════════════════════════
+const SUPABASE_URL  = 'https://wnvrmcibrmrswjwkdlff.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndudnJtY2licm1yc3dqd2tkbGZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDU1MjIsImV4cCI6MjA4ODM4MTUyMn0.jd_Tho4ocWF7mkXjf0Dufy9AhWoVH7Kxw669Nd7JN48';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-        function App() {
-            const [recetas, setRecetas] = useState(() => JSON.parse(localStorage.getItem('mis_recetas_v5') || '[]'));
-            const [nombreReceta, setNombreReceta] = useState("");
-            const [descripcion, setDescripcion] = useState("");
-            const [pasos, setPasos] = useState([{ id: Date.now(), instruccion: "Nuevo Paso", min: 1, seg: 0 }]);
-            const [pasoActual, setPasoActual] = useState(null);
-            const [segundosTotales, setSegundosTotales] = useState(0);
-            const [corriendo, setCorriendo] = useState(false);
-            const [alarmaSonando, setAlarmaSonando] = useState(false);
-            
-            const audioRef = useRef(new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg'));
-            audioRef.current.loop = true;
-            const ultimoInputRef = useRef(null);
+// ══════════════════════════════════════════
+// 🌐  IDIOMAS
+// ══════════════════════════════════════════
+const LANGS = [
+    {code:'es',label:'ES',name:'Español'},
+    {code:'en',label:'EN',name:'English'},
+    {code:'pt',label:'PT',name:'Português'},
+    {code:'fr',label:'FR',name:'Français'},
+    {code:'zh',label:'中文',name:'中文'},
+    {code:'hi',label:'हि',name:'हिन्दी'},
+    {code:'ar',label:'ع',name:'العربية'},
+    {code:'de',label:'DE',name:'Deutsch'},
+    {code:'ja',label:'JP',name:'日本語'},
+    {code:'ru',label:'RU',name:'Русский'},
+];
+const RTL = ['ar'];
 
-            useEffect(() => {
-                localStorage.setItem('mis_recetas_v5', JSON.stringify(recetas));
-            }, [recetas]);
+const T = {
+    es:{appTagline:'Pro Kitchen Tools',whatAreCooking:'¿Qué vamos a cocinar?',descPlaceholder:'Descripción, tips o ingredientes...',schedule:'Cronograma de pasos',addStep:'+ Agregar paso',saveList:'💾 Guardar receta',startTimer:'Iniciar Temporizador',cookbook:'Libro de Recetas',emptyBook:'Tu recetario está vacío',stepsLabel:'pasos',tipTitle:'Tip de Cocina',tipBody:'Guardá esta página en marcadores para acceder con un clic.',stepOf:'Paso',of:'de',pause:'PAUSA',resume:'CONTINUAR',exit:'SALIR',stopAlarm:'APAGAR ALARMA',nameRequired:'Ponéle un nombre a la receta',recipeSaved:'¡Receta guardada!',login:'Iniciar sesión',register:'Registrarse',logout:'Salir',email:'Email',password:'Contraseña',orGoogle:'o continuar con Google',loginTitle:'Bienvenido',loginSub:'Accedé a tus recetas desde cualquier dispositivo',noAccount:'¿No tenés cuenta?',hasAccount:'¿Ya tenés cuenta?',loading:'Cargando...',saving:'Guardando...',newStep:'Nuevo paso',adLabel:'Publicidad'},
+    en:{appTagline:'Pro Kitchen Tools',whatAreCooking:"What are we cooking?",descPlaceholder:'Description, tips or key ingredients...',schedule:'Step Schedule',addStep:'+ Add Step',saveList:'💾 Save Recipe',startTimer:'Start Timer',cookbook:'Recipe Book',emptyBook:'Your recipe book is empty',stepsLabel:'steps',tipTitle:'Kitchen Tip',tipBody:'Bookmark this page to access it with one click next time.',stepOf:'Step',of:'of',pause:'PAUSE',resume:'CONTINUE',exit:'EXIT',stopAlarm:'STOP ALARM',nameRequired:'Give your recipe a name',recipeSaved:'Recipe saved!',login:'Sign in',register:'Sign up',logout:'Sign out',email:'Email',password:'Password',orGoogle:'or continue with Google',loginTitle:'Welcome back',loginSub:'Access your recipes from any device',noAccount:"Don't have an account?",hasAccount:'Already have an account?',loading:'Loading...',saving:'Saving...',newStep:'New step',adLabel:'Advertisement'},
+    pt:{appTagline:'Pro Kitchen Tools',whatAreCooking:'O que vamos cozinhar?',descPlaceholder:'Descrição, dicas ou ingredientes principais...',schedule:'Cronograma de etapas',addStep:'+ Adicionar etapa',saveList:'💾 Salvar receita',startTimer:'Iniciar Temporizador',cookbook:'Livro de Receitas',emptyBook:'Seu livro de receitas está vazio',stepsLabel:'etapas',tipTitle:'Dica de Cozinha',tipBody:'Adicione esta página aos favoritos para acessar com um clique.',stepOf:'Etapa',of:'de',pause:'PAUSAR',resume:'CONTINUAR',exit:'SAIR',stopAlarm:'PARAR ALARME',nameRequired:'Dê um nome à receita',recipeSaved:'Receita salva!',login:'Entrar',register:'Cadastrar',logout:'Sair',email:'Email',password:'Senha',orGoogle:'ou continuar com Google',loginTitle:'Bem-vindo',loginSub:'Acesse suas receitas de qualquer dispositivo',noAccount:'Não tem conta?',hasAccount:'Já tem conta?',loading:'Carregando...',saving:'Salvando...',newStep:'Nova etapa',adLabel:'Publicidade'},
+    fr:{appTagline:'Pro Kitchen Tools',whatAreCooking:"Qu'est-ce qu'on cuisine ?",descPlaceholder:'Description, conseils ou ingrédients clés...',schedule:'Planning des étapes',addStep:'+ Ajouter étape',saveList:'💾 Sauvegarder',startTimer:'Démarrer minuteur',cookbook:'Livre de recettes',emptyBook:'Votre livre de recettes est vide',stepsLabel:'étapes',tipTitle:'Conseil cuisine',tipBody:'Ajoutez cette page à vos favoris pour y accéder en un clic.',stepOf:'Étape',of:'sur',pause:'PAUSE',resume:'REPRENDRE',exit:'QUITTER',stopAlarm:"ARRÊTER L'ALARME",nameRequired:'Donnez un nom à la recette',recipeSaved:'Recette sauvegardée !',login:'Se connecter',register:"S'inscrire",logout:'Déconnexion',email:'Email',password:'Mot de passe',orGoogle:'ou continuer avec Google',loginTitle:'Bienvenue',loginSub:"Accédez à vos recettes depuis n'importe quel appareil",noAccount:'Pas de compte ?',hasAccount:'Déjà un compte ?',loading:'Chargement...',saving:'Sauvegarde...',newStep:'Nouvelle étape',adLabel:'Publicité'},
+    zh:{appTagline:'专业厨房工具',whatAreCooking:'今天做什么？',descPlaceholder:'描述、技巧或主要食材...',schedule:'步骤时间表',addStep:'+ 添加步骤',saveList:'💾 保存食谱',startTimer:'开始计时',cookbook:'食谱本',emptyBook:'您的食谱本是空的',stepsLabel:'步骤',tipTitle:'烹饪小贴士',tipBody:'将此页面添加到书签以便下次一键访问。',stepOf:'第',of:'步共',pause:'暂停',resume:'继续',exit:'退出',stopAlarm:'关闭闹钟',nameRequired:'给食谱起个名字',recipeSaved:'食谱已保存！',login:'登录',register:'注册',logout:'退出',email:'邮箱',password:'密码',orGoogle:'或用 Google 继续',loginTitle:'欢迎回来',loginSub:'从任何设备访问您的食谱',noAccount:'没有账号？',hasAccount:'已有账号？',loading:'加载中...',saving:'保存中...',newStep:'新步骤',adLabel:'广告'},
+    hi:{appTagline:'प्रो किचन टूल्स',whatAreCooking:'आज क्या पकाना है?',descPlaceholder:'विवरण, टिप्स या मुख्य सामग्री...',schedule:'चरण अनुसूची',addStep:'+ चरण जोड़ें',saveList:'💾 रेसिपी सेव करें',startTimer:'टाइमर शुरू करें',cookbook:'रेसिपी बुक',emptyBook:'आपकी रेसिपी बुक खाली है',stepsLabel:'चरण',tipTitle:'रसोई टिप',tipBody:'इस पेज को बुकमार्क करें।',stepOf:'चरण',of:'का',pause:'रोकें',resume:'जारी रखें',exit:'बाहर',stopAlarm:'अलार्म बंद',nameRequired:'रेसिपी को नाम दें',recipeSaved:'रेसिपी सेव हो गई!',login:'लॉगिन',register:'रजिस्टर',logout:'लॉगआउट',email:'ईमेल',password:'पासवर्ड',orGoogle:'या Google से जारी रखें',loginTitle:'वापस स्वागत है',loginSub:'किसी भी डिवाइस से अपनी रेसिपी एक्सेस करें',noAccount:'अकाउंट नहीं है?',hasAccount:'पहले से अकाउंट है?',loading:'लोड हो रहा है...',saving:'सेव हो रहा है...',newStep:'नया चरण',adLabel:'विज्ञापन'},
+    ar:{appTagline:'أدوات المطبخ الاحترافية',whatAreCooking:'ماذا سنطبخ اليوم؟',descPlaceholder:'وصف أو نصائح أو مكونات...',schedule:'جدول الخطوات',addStep:'+ إضافة خطوة',saveList:'💾 حفظ الوصفة',startTimer:'بدء المؤقت',cookbook:'كتاب الوصفات',emptyBook:'كتاب الوصفات فارغ',stepsLabel:'خطوات',tipTitle:'نصيحة طبخ',tipBody:'احفظ هذه الصفحة في المفضلة.',stepOf:'الخطوة',of:'من',pause:'إيقاف مؤقت',resume:'متابعة',exit:'خروج',stopAlarm:'إيقاف المنبه',nameRequired:'أعطِ اسماً للوصفة',recipeSaved:'تم حفظ الوصفة!',login:'تسجيل الدخول',register:'إنشاء حساب',logout:'خروج',email:'البريد الإلكتروني',password:'كلمة المرور',orGoogle:'أو المتابعة بـ Google',loginTitle:'مرحباً بك',loginSub:'احصل على وصفاتك من أي جهاز',noAccount:'ليس لديك حساب؟',hasAccount:'لديك حساب بالفعل؟',loading:'جارٍ التحميل...',saving:'جارٍ الحفظ...',newStep:'خطوة جديدة',adLabel:'إعلان'},
+    de:{appTagline:'Pro Küchenwerkzeuge',whatAreCooking:'Was kochen wir heute?',descPlaceholder:'Beschreibung, Tipps oder Hauptzutaten...',schedule:'Schrittzeitplan',addStep:'+ Schritt hinzufügen',saveList:'💾 Rezept speichern',startTimer:'Timer starten',cookbook:'Rezeptbuch',emptyBook:'Dein Rezeptbuch ist leer',stepsLabel:'Schritte',tipTitle:'Kochtipp',tipBody:'Lesezeichen setzen für schnellen Zugriff.',stepOf:'Schritt',of:'von',pause:'PAUSE',resume:'WEITER',exit:'BEENDEN',stopAlarm:'ALARM STOPPEN',nameRequired:'Gib dem Rezept einen Namen',recipeSaved:'Rezept gespeichert!',login:'Anmelden',register:'Registrieren',logout:'Abmelden',email:'E-Mail',password:'Passwort',orGoogle:'oder mit Google fortfahren',loginTitle:'Willkommen zurück',loginSub:'Greife von jedem Gerät auf deine Rezepte zu',noAccount:'Noch kein Konto?',hasAccount:'Schon ein Konto?',loading:'Laden...',saving:'Speichern...',newStep:'Neuer Schritt',adLabel:'Werbung'},
+    ja:{appTagline:'プロキッチンツール',whatAreCooking:'今日は何を作りますか？',descPlaceholder:'説明、ヒント、主な材料...',schedule:'ステップスケジュール',addStep:'+ ステップを追加',saveList:'💾 レシピを保存',startTimer:'タイマー開始',cookbook:'レシピブック',emptyBook:'レシピブックは空です',stepsLabel:'ステップ',tipTitle:'料理のヒント',tipBody:'このページをブックマークして次回すぐアクセス。',stepOf:'ステップ',of:'/',pause:'一時停止',resume:'再開',exit:'終了',stopAlarm:'アラームを止める',nameRequired:'レシピに名前を付けてください',recipeSaved:'レシピが保存されました！',login:'ログイン',register:'登録',logout:'ログアウト',email:'メール',password:'パスワード',orGoogle:'またはGoogleで続ける',loginTitle:'おかえりなさい',loginSub:'どのデバイスからでもレシピにアクセス',noAccount:'アカウントがない？',hasAccount:'すでにアカウントがある？',loading:'読み込み中...',saving:'保存中...',newStep:'新しいステップ',adLabel:'広告'},
+    ru:{appTagline:'Профессиональные инструменты',whatAreCooking:'Что будем готовить?',descPlaceholder:'Описание, советы или ключевые ингредиенты...',schedule:'Расписание шагов',addStep:'+ Добавить шаг',saveList:'💾 Сохранить рецепт',startTimer:'Запустить таймер',cookbook:'Книга рецептов',emptyBook:'Ваша книга рецептов пуста',stepsLabel:'шагов',tipTitle:'Кулинарный совет',tipBody:'Добавьте страницу в закладки для быстрого доступа.',stepOf:'Шаг',of:'из',pause:'ПАУЗА',resume:'ПРОДОЛЖИТЬ',exit:'ВЫЙТИ',stopAlarm:'ВЫКЛЮЧИТЬ БУДИЛЬНИК',nameRequired:'Дайте рецепту название',recipeSaved:'Рецепт сохранён!',login:'Войти',register:'Зарегистрироваться',logout:'Выйти',email:'Email',password:'Пароль',orGoogle:'или продолжить с Google',loginTitle:'С возвращением',loginSub:'Доступ к рецептам с любого устройства',noAccount:'Нет аккаунта?',hasAccount:'Уже есть аккаунт?',loading:'Загрузка...',saving:'Сохранение...',newStep:'Новый шаг',adLabel:'Реклама'},
+};
 
-            useEffect(() => {
-                if (ultimoInputRef.current) {
-                    ultimoInputRef.current.focus();
-                    ultimoInputRef.current.select();
-                }
-            }, [pasos.length]);
+// ══════════════════════════════════════════
+// 📢  ADSENSE SLOT
+// ══════════════════════════════════════════
+function AdSlot({ slot, format='auto', className='' }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        try { if (ref.current) (window.adsbygoogle = window.adsbygoogle || []).push({}); }
+        catch(e) {}
+    }, []);
+    return (
+        <div className={`adsense-slot ${className}`} ref={ref}>
+            <ins className="adsbygoogle"
+                style={{display:'block'}}
+                data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+                data-ad-slot={slot}
+                data-ad-format={format}
+                data-full-width-responsive="true"
+            />
+        </div>
+    );
+}
 
-            const agregarPaso = () => {
-                setPasos([...pasos, { id: Date.now(), instruccion: `Paso ${pasos.length + 1}`, min: 1, seg: 0 }]);
-            };
-            
-            const editarPaso = (index, campo, valor) => {
-                const nuevosPasos = [...pasos];
-                nuevosPasos[index][campo] = valor;
-                setPasos(nuevosPasos);
-            };
+// ══════════════════════════════════════════
+// 🌐  LANG SWITCHER
+// ══════════════════════════════════════════
+function LangSwitcher({ lang, setLang }) {
+    const [open, setOpen] = useState(false);
+    const cur = LANGS.find(l => l.code === lang);
+    return (
+        <div className="relative" onBlur={() => setTimeout(()=>setOpen(false),150)}>
+            <button onClick={()=>setOpen(!open)} className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-[11px] font-black hover:border-zinc-600 transition-all">
+                <span>{cur?.label}</span><span className="text-zinc-600">▾</span>
+            </button>
+            {open && (
+                <div className="absolute right-0 top-full mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl z-50 w-44 fade-in">
+                    {LANGS.map(l => (
+                        <button key={l.code} onClick={()=>{setLang(l.code);setOpen(false);}}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold hover:bg-zinc-800 transition-colors text-left ${lang===l.code?'text-orange-400':'text-zinc-300'}`}>
+                            <span className="w-7 text-center font-black text-[10px]">{l.label}</span>
+                            <span>{l.name}</span>
+                            {lang===l.code && <span className="ml-auto text-orange-400 text-[10px]">✓</span>}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
-            const guardarReceta = () => {
-                if (!nombreReceta) return alert("Ponéle un nombre a la receta");
-                const nueva = { id: Date.now(), nombre: nombreReceta, descripcion, pasos: [...pasos] };
-                setRecetas([nueva, ...recetas]);
-                setNombreReceta("");
-                setDescripcion("");
-                alert("¡Receta guardada!");
-            };
+// ══════════════════════════════════════════
+// 🔐  LOGIN
+// ══════════════════════════════════════════
+function LoginScreen({ t, authMode, setAuthMode, handleAuth, lang, setLang }) {
+    const [email, setEmail] = useState('');
+    const [pass, setPass]   = useState('');
+    const isRTL = RTL.includes(lang);
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 relative" dir={isRTL?'rtl':'ltr'}>
+            <div className="absolute inset-0 opacity-5 pointer-events-none" style={{backgroundImage:'radial-gradient(circle at 30% 20%,#ea580c 0%,transparent 55%),radial-gradient(circle at 80% 80%,#ea580c 0%,transparent 55%)'}}/>
+            <div className="absolute top-4 right-4 z-10"><LangSwitcher lang={lang} setLang={setLang}/></div>
+            <div className="w-full max-w-sm fade-in">
+                <div className="flex items-center gap-3 mb-8 justify-center">
+                    <span className="text-5xl">👨‍🍳</span>
+                    <div>
+                        <h1 className="bebas text-3xl tracking-widest text-white leading-none">Chef Timer</h1>
+                        <p className="text-zinc-500 text-[10px] font-black tracking-[0.3em] uppercase">{t.appTagline}</p>
+                    </div>
+                </div>
+                <div className="bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 rounded-[2rem] p-8 shadow-2xl">
+                    <h2 className="font-black text-xl mb-1">{t.loginTitle}</h2>
+                    <p className="text-zinc-500 text-sm mb-6">{t.loginSub}</p>
+                    <form onSubmit={e=>handleAuth(e,email,pass)} className="space-y-4">
+                        <input type="email" placeholder={t.email} required
+                            className="w-full bg-zinc-800 border border-zinc-700 p-4 rounded-xl outline-none focus:border-orange-500 transition-all text-sm"
+                            value={email} onChange={e=>setEmail(e.target.value)}/>
+                        <input type="password" placeholder={t.password} required
+                            className="w-full bg-zinc-800 border border-zinc-700 p-4 rounded-xl outline-none focus:border-orange-500 transition-all text-sm"
+                            value={pass} onChange={e=>setPass(e.target.value)}/>
+                        <button type="submit" className="w-full py-4 bg-orange-600 hover:bg-orange-500 rounded-xl font-black uppercase tracking-widest text-sm transition-all active:scale-95">
+                            {authMode==='login'?t.login:t.register}
+                        </button>
+                    </form>
+                    <div className="my-5 flex items-center gap-3">
+                        <div className="flex-1 h-px bg-zinc-800"/>
+                        <span className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">{t.orGoogle}</span>
+                        <div className="flex-1 h-px bg-zinc-800"/>
+                    </div>
+                    <button onClick={()=>sb.auth.signInWithOAuth({provider:'google'})} className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#EA4335" d="M5.27 9.76A7.08 7.08 0 0 1 19.07 12l3.66-3.67A12 12 0 0 0 2 9.76z"/><path fill="#34A853" d="M12 24a11.93 11.93 0 0 0 8.28-3.32l-3.93-3.33a7.08 7.08 0 0 1-10.76-3.72L1.64 17.4A12 12 0 0 0 12 24z"/><path fill="#4A90D9" d="M23.64 12.28c0-.82-.07-1.61-.2-2.38H12v4.51h6.52a5.57 5.57 0 0 1-2.42 3.65l3.93 3.33c2.3-2.12 3.61-5.24 3.61-9.11z"/><path fill="#FBBC05" d="M5.27 14.24a7.12 7.12 0 0 1 0-4.48L1.64 6.6a12.08 12.08 0 0 0 0 10.8z"/></svg>
+                        Google
+                    </button>
+                    <p className="text-center text-zinc-600 text-xs mt-5">
+                        {authMode==='login'?t.noAccount:t.hasAccount}{' '}
+                        <button onClick={()=>setAuthMode(authMode==='login'?'register':'login')} className="text-orange-400 font-black hover:text-orange-300">
+                            {authMode==='login'?t.register:t.login}
+                        </button>
+                    </p>
+                </div>
+                <div className="mt-5"><AdSlot slot="1111111111" format="auto"/></div>
+            </div>
+        </div>
+    );
+}
 
-            const cargarReceta = (r) => {
-                setPasos(r.pasos);
-                setNombreReceta(r.nombre);
-                setDescripcion(r.descripcion || "");
-            };
+// ══════════════════════════════════════════
+// 🎯  APP
+// ══════════════════════════════════════════
+function App() {
+    const [lang, setLang] = useState(() => {
+        const s = localStorage.getItem('chefLang');
+        if (s && T[s]) return s;
+        const b = (navigator.language||'es').split('-')[0];
+        return T[b] ? b : 'es';
+    });
+    const t = T[lang];
+    const isRTL = RTL.includes(lang);
 
-            const iniciarCocina = (index = 0) => {
-                if (pasos.length > 0) {
-                    setPasoActual(index);
-                    setSegundosTotales(pasos[index].min * 60 + pasos[index].seg);
-                    setCorriendo(true);
-                }
-            };
+    useEffect(() => {
+        localStorage.setItem('chefLang', lang);
+        document.documentElement.lang = lang;
+        document.documentElement.dir  = isRTL ? 'rtl' : 'ltr';
+    }, [lang, isRTL]);
 
-            const detenerAlarma = () => {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-                setAlarmaSonando(false);
-                if (pasoActual < pasos.length - 1) {
-                    const siguiente = pasoActual + 1;
-                    setPasoActual(siguiente);
-                    setSegundosTotales(pasos[siguiente].min * 60 + pasos[siguiente].seg);
-                    setCorriendo(true);
-                } else {
-                    setPasoActual(null);
-                }
-            };
+    const [session, setSession]     = useState(null);
+    const [authMode, setAuthMode]   = useState('login');
+    const [authLoading, setAuthLoading] = useState(true);
+    const [recetas, setRecetas]     = useState([]);
+    const [nombreReceta, setNombreReceta] = useState('');
+    const [descripcion, setDescripcion]   = useState('');
+    const [pasos, setPasos]         = useState([{id:Date.now(),instruccion:'',min:1,seg:0}]);
+    const [pasoActual, setPasoActual] = useState(null);
+    const [segundos, setSegundos]   = useState(0);
+    const [corriendo, setCorriendo] = useState(false);
+    const [alarma, setAlarma]       = useState(false);
+    const [dbLoading, setDbLoading] = useState(false);
 
-            useEffect(() => {
-                let timer;
-                if (corriendo && segundosTotales > 0) {
-                    timer = setInterval(() => setSegundosTotales(s => s - 1), 1000);
-                } else if (segundosTotales === 0 && corriendo) {
-                    setCorriendo(false);
-                    setAlarmaSonando(true);
-                    audioRef.current.play().catch(() => {});
-                }
-                return () => clearInterval(timer);
-            }, [corriendo, segundosTotales]);
+    const audioRef = useRef(new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg'));
+    audioRef.current.loop = true;
+    const lastInputRef = useRef(null);
 
-            const formatoDisplay = (s) => {
-                const m = Math.floor(s / 60);
-                const seg = s % 60;
-                return `${m}:${seg.toString().padStart(2, '0')}`;
-            };
+    useEffect(() => {
+        sb.auth.getSession().then(({data})=>{setSession(data.session);setAuthLoading(false);});
+        const {data:l} = sb.auth.onAuthStateChange((_,s)=>setSession(s));
+        return ()=>l.subscription.unsubscribe();
+    },[]);
 
-            return (
-                <div class={`min-h-screen ${alarmaSonando ? 'alarma-activa' : ''} p-4 md:p-8 transition-colors duration-500`}>
-                    <div class="max-w-5xl mx-auto flex flex-col lg:flex-row gap-8">
-                        
-                        {/* EDITOR PRINCIPAL */}
-                        {pasoActual === null && (
-                            <div class="flex-1 bg-zinc-900/50 backdrop-blur-sm p-6 rounded-[2rem] border border-zinc-800 shadow-2xl">
-                                <div class="flex items-center gap-3 mb-8">
-                                    <span class="text-4xl">👨‍🍳</span>
-                                    <div>
-                                        <h1 class="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">Chef Timer</h1>
-                                        <p class="text-zinc-500 text-[10px] font-bold tracking-[0.3em] uppercase">Pro Kitchen Tools</p>
-                                    </div>
-                                </div>
-                                
-                                <div class="space-y-4 mb-8">
-                                    <input 
-                                        type="text" placeholder="¿Qué vamos a cocinar?"
-                                        class="w-full bg-zinc-800 p-5 rounded-2xl border border-zinc-700 outline-none focus:border-orange-500 font-bold text-lg transition-all"
-                                        value={nombreReceta} onChange={(e) => setNombreReceta(e.target.value)}
-                                    />
-                                    <textarea 
-                                        placeholder="Descripción rápida, tips o ingredientes clave..."
-                                        class="w-full bg-zinc-800 p-4 rounded-2xl border border-zinc-700 outline-none focus:border-orange-500 text-sm resize-none h-20"
-                                        value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
-                                    />
-                                </div>
+    useEffect(()=>{if(session)loadRecetas();},[session]);
 
-                                <div class="space-y-3 mb-8 max-h-[45vh] overflow-y-auto pr-2 custom-scroll">
-                                    <p class="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-2 mb-2">Cronograma de Pasos</p>
-                                    {pasos.map((p, i) => (
-                                        <div key={p.id} class="flex flex-col sm:flex-row gap-3 bg-zinc-950/80 p-4 rounded-2xl border border-zinc-800 items-center group transition-all hover:border-zinc-700">
-                                            <input 
-                                                ref={i === pasos.length - 1 ? ultimoInputRef : null}
-                                                type="text" 
-                                                class="flex-1 bg-transparent outline-none font-semibold focus:text-orange-400 w-full sm:w-auto" 
-                                                value={p.instruccion} 
-                                                onChange={(e) => editarPaso(i, 'instruccion', e.target.value)}
-                                            />
-                                            <div class="flex items-center gap-2">
-                                                <div class="flex items-center bg-zinc-800 rounded-xl px-2">
-                                                    <input type="number" class="w-10 bg-transparent py-2 text-center font-bold text-orange-500 outline-none" value={p.min} onChange={(e) => editarPaso(i, 'min', parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()}/>
-                                                    <span class="text-[9px] font-bold text-zinc-600 mr-2">M</span>
-                                                    <input type="number" class="w-10 bg-transparent py-2 text-center font-bold text-orange-500 outline-none" value={p.seg} onChange={(e) => editarPaso(i, 'seg', Math.min(59, parseInt(e.target.value) || 0))} onFocus={(e) => e.target.select()}/>
-                                                    <span class="text-[9px] font-bold text-zinc-600 mr-1">S</span>
-                                                </div>
-                                                <button onClick={() => setPasos(pasos.filter((_, idx) => idx !== i))} class="p-2 text-zinc-700 hover:text-red-500 transition-colors">✕</button>
+    useEffect(()=>{
+        if(lastInputRef.current){lastInputRef.current.focus();lastInputRef.current.select();}
+    },[pasos.length]);
+
+    useEffect(()=>{
+        let timer;
+        if(corriendo && segundos>0) timer=setInterval(()=>setSegundos(s=>s-1),1000);
+        else if(segundos===0&&corriendo){setCorriendo(false);setAlarma(true);audioRef.current.play().catch(()=>{});}
+        return ()=>clearInterval(timer);
+    },[corriendo,segundos]);
+
+    const loadRecetas = async () => {
+        setDbLoading(true);
+        const {data} = await sb.from('recetas').select('*').order('created_at',{ascending:false});
+        if(data) setRecetas(data);
+        setDbLoading(false);
+    };
+
+    const guardarReceta = async () => {
+        if(!nombreReceta.trim()) return alert(t.nameRequired);
+        setDbLoading(true);
+        const {data} = await sb.from('recetas').insert({user_id:session.user.id,nombre:nombreReceta,descripcion,pasos:JSON.stringify(pasos)}).select().single();
+        if(data) setRecetas([data,...recetas]);
+        setDbLoading(false);
+        alert(t.recipeSaved);
+    };
+
+    const eliminarReceta = async (id) => {
+        await sb.from('recetas').delete().eq('id',id);
+        setRecetas(recetas.filter(r=>r.id!==id));
+    };
+
+    const cargarReceta = (r) => {
+        const p = typeof r.pasos==='string'?JSON.parse(r.pasos):r.pasos;
+        setPasos(p); setNombreReceta(r.nombre); setDescripcion(r.descripcion||'');
+    };
+
+    const agregarPaso = () => setPasos([...pasos,{id:Date.now(),instruccion:`${t.newStep} ${pasos.length+1}`,min:1,seg:0}]);
+    const editarPaso  = (i,campo,val) => { const np=[...pasos]; np[i][campo]=val; setPasos(np); };
+
+    const iniciarCocina = (idx=0) => {
+        if(!pasos.length) return;
+        setPasoActual(idx); setSegundos(pasos[idx].min*60+pasos[idx].seg); setCorriendo(true);
+    };
+
+    const detenerAlarma = () => {
+        audioRef.current.pause(); audioRef.current.currentTime=0; setAlarma(false);
+        if(pasoActual<pasos.length-1){ const nx=pasoActual+1; setPasoActual(nx); setSegundos(pasos[nx].min*60+pasos[nx].seg); setCorriendo(true); }
+        else setPasoActual(null);
+    };
+
+    const fmt = s => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+
+    const handleAuth = async (e,email,password) => {
+        e.preventDefault(); setAuthLoading(true);
+        authMode==='login'
+            ? await sb.auth.signInWithPassword({email,password})
+            : await sb.auth.signUp({email,password});
+        setAuthLoading(false);
+    };
+
+    if(authLoading) return <div className="min-h-screen flex items-center justify-center text-zinc-500 font-bold text-sm tracking-widest uppercase">{t.loading}</div>;
+    if(!session) return <LoginScreen t={t} authMode={authMode} setAuthMode={setAuthMode} handleAuth={handleAuth} lang={lang} setLang={setLang}/>;
+
+    return (
+        <div className={`min-h-screen ${alarma?'alarma-activa':''} transition-colors duration-500`} dir={isRTL?'rtl':'ltr'}>
+            {/* NAV */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60 backdrop-blur-sm sticky top-0 z-20 bg-zinc-950/80">
+                <div className="flex items-center gap-2">
+                    <span className="text-2xl">👨‍🍳</span>
+                    <span className="bebas text-xl tracking-wider text-white">Chef Timer Pro</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <LangSwitcher lang={lang} setLang={setLang}/>
+                    <span className="text-zinc-600 text-xs hidden sm:block truncate max-w-[140px]">{session.user.email}</span>
+                    <button onClick={()=>sb.auth.signOut()} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-400 transition-colors px-3 py-1.5 border border-zinc-800 rounded-lg">
+                        {t.logout}
+                    </button>
+                </div>
+            </div>
+
+            {/* TOP BANNER — 728x90 */}
+            <div className="px-4 md:px-8 pt-4 pb-2">
+                <AdSlot slot="2222222222" format="horizontal"/>
+            </div>
+
+            <div className="p-4 md:p-8 pt-2">
+                <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-8">
+
+                    {/* EDITOR */}
+                    {pasoActual===null && (
+                        <div className="flex-1 bg-zinc-900/50 backdrop-blur-sm p-6 rounded-[2rem] border border-zinc-800 shadow-2xl fade-in">
+                            <div className="space-y-4 mb-8">
+                                <input type="text" placeholder={t.whatAreCooking}
+                                    className="w-full bg-zinc-800 p-5 rounded-2xl border border-zinc-700 outline-none focus:border-orange-500 font-bold text-lg transition-all"
+                                    value={nombreReceta} onChange={e=>setNombreReceta(e.target.value)}/>
+                                <textarea placeholder={t.descPlaceholder}
+                                    className="w-full bg-zinc-800 p-4 rounded-2xl border border-zinc-700 outline-none focus:border-orange-500 text-sm resize-none h-20"
+                                    value={descripcion} onChange={e=>setDescripcion(e.target.value)}/>
+                            </div>
+
+                            <div className="space-y-3 mb-6 max-h-[38vh] overflow-y-auto pr-2">
+                                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-2 mb-2">{t.schedule}</p>
+                                {pasos.map((p,i)=>(
+                                    <div key={p.id} className="flex flex-col sm:flex-row gap-3 bg-zinc-950/80 p-4 rounded-2xl border border-zinc-800 items-center group hover:border-zinc-700 transition-all">
+                                        <input ref={i===pasos.length-1?lastInputRef:null} type="text"
+                                            className="flex-1 bg-transparent outline-none font-semibold focus:text-orange-400 w-full sm:w-auto"
+                                            value={p.instruccion} onChange={e=>editarPaso(i,'instruccion',e.target.value)}/>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex items-center bg-zinc-800 rounded-xl px-2">
+                                                <input type="number" className="w-10 bg-transparent py-2 text-center font-bold text-orange-500 outline-none"
+                                                    value={p.min} onChange={e=>editarPaso(i,'min',parseInt(e.target.value)||0)} onFocus={e=>e.target.select()}/>
+                                                <span className="text-[9px] font-bold text-zinc-600 mr-2">M</span>
+                                                <input type="number" className="w-10 bg-transparent py-2 text-center font-bold text-orange-500 outline-none"
+                                                    value={p.seg} onChange={e=>editarPaso(i,'seg',Math.min(59,parseInt(e.target.value)||0))} onFocus={e=>e.target.select()}/>
+                                                <span className="text-[9px] font-bold text-zinc-600 mr-1">S</span>
                                             </div>
+                                            <button onClick={()=>setPasos(pasos.filter((_,idx)=>idx!==i))} className="p-2 text-zinc-700 hover:text-red-500 transition-colors">✕</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* IN-FEED AD */}
+                            <div className="mb-5"><AdSlot slot="3333333333" format="fluid"/></div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <button onClick={agregarPaso} className="py-4 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-500 font-black hover:text-zinc-200 hover:border-zinc-600 transition-all text-xs uppercase tracking-widest">
+                                    {t.addStep}
+                                </button>
+                                <button onClick={guardarReceta} disabled={dbLoading} className="py-4 bg-zinc-800 border border-zinc-700 rounded-2xl font-black text-zinc-300 hover:bg-zinc-700 transition-all text-xs uppercase tracking-widest disabled:opacity-40">
+                                    {dbLoading?t.saving:t.saveList}
+                                </button>
+                                <button onClick={()=>iniciarCocina(0)} className="col-span-2 py-5 bg-orange-600 rounded-2xl font-black hover:bg-orange-500 transition-all shadow-xl shadow-orange-950/30 active:scale-95 uppercase bebas text-2xl tracking-widest">
+                                    {t.startTimer}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* COOKING MODE */}
+                    {pasoActual!==null && (
+                        <div className="flex-1 bg-zinc-900 p-8 md:p-16 rounded-[3.5rem] border-4 border-orange-600 text-center shadow-2xl relative flex flex-col justify-center min-h-[70vh] fade-in">
+                            <div className="absolute top-8 left-0 right-0 px-8 flex justify-between items-center">
+                                <span className="bg-orange-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                                    {t.stepOf} {pasoActual+1} {t.of} {pasos.length}
+                                </span>
+                                <span className="text-zinc-500 font-bold text-xs uppercase tracking-widest">{nombreReceta}</span>
+                            </div>
+                            <div className="mt-8">
+                                {descripcion&&<p className="text-zinc-500 italic text-sm mb-6 max-w-md mx-auto line-clamp-2">"{descripcion}"</p>}
+                                <h3 className="text-4xl md:text-6xl font-black mb-8 leading-tight tracking-tighter">{pasos[pasoActual].instruccion}</h3>
+                                <div className={`bebas text-[120px] md:text-[180px] leading-none mb-12 tabular-nums text-white drop-shadow-2xl ${corriendo?'pulse-ring rounded-3xl inline-block px-4':''}`}>
+                                    {fmt(segundos)}
+                                </div>
+                            </div>
+                            {alarma?(
+                                <button onClick={detenerAlarma} className="w-full py-10 bg-white text-black rounded-3xl font-black text-4xl shadow-2xl animate-bounce hover:bg-zinc-100 transition-colors bebas tracking-widest">
+                                    {t.stopAlarm}
+                                </button>
+                            ):(
+                                <div className="flex gap-4 max-w-md mx-auto w-full">
+                                    <button onClick={()=>setCorriendo(!corriendo)} className={`flex-1 py-6 rounded-2xl font-black text-xl transition-all bebas tracking-widest ${corriendo?'bg-zinc-800 text-zinc-500':'bg-white text-black hover:scale-105 active:scale-95'}`}>
+                                        {corriendo?t.pause:t.resume}
+                                    </button>
+                                    <button onClick={()=>{audioRef.current.pause();setPasoActual(null);}} className="px-8 py-6 bg-zinc-950 rounded-2xl font-bold text-zinc-600 hover:text-red-500 transition-colors">
+                                        {t.exit}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* SIDEBAR */}
+                    {pasoActual===null && (
+                        <div className="lg:w-80 flex flex-col gap-5">
+                            {/* SIDEBAR AD — 300x250 */}
+                            <AdSlot slot="4444444444" format="rectangle"/>
+
+                            <div className="bg-zinc-900/50 p-6 rounded-[2rem] border border-zinc-800">
+                                <h2 className="text-zinc-600 font-black mb-5 uppercase text-[10px] tracking-[0.4em] flex items-center justify-between">
+                                    {t.cookbook}
+                                    <span className="bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md text-[9px]">{recetas.length}</span>
+                                </h2>
+                                <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+                                    {dbLoading&&<p className="text-zinc-600 text-xs text-center py-4">{t.loading}</p>}
+                                    {!dbLoading&&recetas.length===0&&(
+                                        <div className="text-center p-8 border-2 border-dashed border-zinc-800 rounded-3xl">
+                                            <p className="text-zinc-700 text-sm font-bold italic">{t.emptyBook}</p>
+                                        </div>
+                                    )}
+                                    {recetas.map(r=>(
+                                        <div key={r.id} className="group flex items-center gap-3 bg-zinc-900 p-4 rounded-2xl hover:border-orange-500/50 border border-transparent transition-all cursor-pointer active:scale-95" onClick={()=>cargarReceta(r)}>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-black text-sm truncate uppercase tracking-tighter">{r.nombre}</p>
+                                                <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">
+                                                    {(typeof r.pasos==='string'?JSON.parse(r.pasos):r.pasos).length} {t.stepsLabel}
+                                                </p>
+                                            </div>
+                                            <button onClick={e=>{e.stopPropagation();eliminarReceta(r.id);}} className="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-500 transition-all font-bold">✕</button>
                                         </div>
                                     ))}
                                 </div>
-
-                                <div class="grid grid-cols-2 gap-4">
-                                    <button onClick={agregarPaso} class="py-4 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-500 font-black hover:text-zinc-200 hover:border-zinc-600 transition-all text-xs uppercase tracking-widest">+ Agregar Paso</button>
-                                    <button onClick={guardarReceta} class="py-4 bg-zinc-800 border border-zinc-700 rounded-2xl font-black text-zinc-300 hover:bg-zinc-700 transition-all text-xs uppercase tracking-widest">💾 Guardar Lista</button>
-                                    <button onClick={() => iniciarCocina(0)} class="col-span-2 py-5 bg-orange-600 rounded-2xl font-black text-xl hover:bg-orange-500 transition-all shadow-xl shadow-orange-950/20 active:scale-95 uppercase tracking-tighter">Iniciar Temporizador</button>
-                                </div>
                             </div>
-                        )}
 
-                        {/* MODO COCINA ACTIVO */}
-                        {pasoActual !== null && (
-                            <div class="flex-1 bg-zinc-900 p-8 md:p-16 rounded-[3.5rem] border-4 border-orange-600 text-center shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[70vh]">
-                                <div class="absolute top-8 left-0 right-0 px-8 flex justify-between items-center">
-                                    <span class="bg-orange-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Paso {pasoActual + 1} de {pasos.length}</span>
-                                    <span class="text-zinc-500 font-bold text-xs uppercase tracking-widest">{nombreReceta}</span>
-                                </div>
-
-                                <div class="mt-8">
-                                    {descripcion && <p class="text-zinc-500 italic text-sm mb-6 max-w-md mx-auto line-clamp-2">"{descripcion}"</p>}
-                                    <h3 class="text-4xl md:text-6xl font-black mb-8 leading-tight tracking-tighter">{pasos[pasoActual].instruccion}</h3>
-                                    <div class="text-[120px] md:text-[180px] font-black leading-none mb-12 tabular-nums tracking-tighter text-white drop-shadow-2xl">
-                                        {formatoDisplay(segundosTotales)}
-                                    </div>
-                                </div>
-
-                                {alarmaSonando ? (
-                                    <button onClick={detenerAlarma} class="w-full py-10 bg-white text-black rounded-3xl font-black text-4xl shadow-2xl animate-bounce hover:bg-zinc-100 transition-colors">APAGAR ALARMA</button>
-                                ) : (
-                                    <div class="flex gap-4 max-w-md mx-auto w-full">
-                                        <button onClick={() => setCorriendo(!corriendo)} class={`flex-1 py-6 rounded-2xl font-black text-xl transition-all ${corriendo ? 'bg-zinc-800 text-zinc-500' : 'bg-white text-black hover:scale-105 active:scale-95'}`}>
-                                            {corriendo ? 'PAUSA' : 'CONTINUAR'}
-                                        </button>
-                                        <button onClick={() => { audioRef.current.pause(); setPasoActual(null); }} class="px-8 py-6 bg-zinc-950 rounded-2xl font-bold text-zinc-600 hover:text-red-500 transition-colors">SALIR</button>
-                                    </div>
-                                )}
+                            <div className="bg-orange-600/10 p-5 rounded-[2rem] border border-orange-600/20">
+                                <p className="text-orange-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.tipTitle}</p>
+                                <p className="text-zinc-400 text-xs leading-relaxed">{t.tipBody}</p>
                             </div>
-                        )}
-
-                        {/* BARRA LATERAL DE RECETAS */}
-                        {pasoActual === null && (
-                            <div class="lg:w-80 flex flex-col gap-6">
-                                <div class="bg-zinc-900/50 p-6 rounded-[2rem] border border-zinc-800 h-fit">
-                                    <h2 class="text-zinc-600 font-black mb-6 uppercase text-[10px] tracking-[0.4em] flex items-center justify-between">
-                                        Libro de Recetas
-                                        <span class="bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md text-[9px]">{recetas.length}</span>
-                                    </h2>
-                                    <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scroll">
-                                        {recetas.length === 0 && (
-                                            <div class="text-center p-8 border-2 border-dashed border-zinc-800 rounded-3xl">
-                                                <p class="text-zinc-700 text-sm font-bold italic">Tu recetario está vacío</p>
-                                            </div>
-                                        )}
-                                        {recetas.map(r => (
-                                            <div key={r.id} class="group flex items-center gap-3 bg-zinc-900 p-4 rounded-2xl hover:border-orange-500/50 border border-transparent transition-all cursor-pointer active:scale-95" onClick={() => cargarReceta(r)}>
-                                                <div class="flex-1 min-w-0">
-                                                    <p class="font-black text-sm truncate uppercase tracking-tighter">{r.nombre}</p>
-                                                    <p class="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{r.pasos.length} pasos configurados</p>
-                                                </div>
-                                                <button onClick={(e) => { e.stopPropagation(); setRecetas(recetas.filter(x => x.id !== r.id)); }} class="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-500 transition-all font-bold">✕</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-orange-600/10 p-6 rounded-[2rem] border border-orange-600/20">
-                                    <p class="text-orange-500 text-[10px] font-black uppercase tracking-widest mb-1">Tip de Cocina</p>
-                                    <p class="text-zinc-400 text-xs leading-relaxed">Guardá esta página en tus <b>marcadores</b> de la barra de favoritos para entrar con un clic la próxima vez.</p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
-            );
-        }
+            </div>
+        </div>
+    );
+}
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
 </body>
 </html>
